@@ -43,13 +43,28 @@ def _stub_launch() -> list[tuple]:
 
 def test_original_list_pythons() -> None:
     from tn_venv import cli_run  # patched
+    import re
+
     buf = io.StringIO()
     with redirect_stdout(buf):
         rc = cli_run(["--list-pythons", "--no-color"])
     output = buf.getvalue()
     assert rc == 0, f"expected 0, got {rc}"
-    assert "cpython" in output or "no interpreters" in output, (
-        f"--list-pythons didn't produce its expected output:\n{output}"
+    # ``==> discovering interpreters`` is the unchanging prefix on every
+    # platform. The interpreter line format itself differs (Windows
+    # prints "cpython 3.x ... from C:\\...", Linux prints "3.x ... —
+    # current"), so we only assert on the parts that *don't* change.
+    assert "==> discovering interpreters" in output, (
+        f"--list-pythons didn't produce its expected prefix:\n{output}"
+    )
+    # The interpreter lines look like ``  3.12.13 (64-bit)   ...`` on
+    # every platform; match that with a regex rather than looking for
+    # platform-specific strings like ``cpython`` or ``— PATH``.
+    version_line = re.compile(r"^\s*\d+\.\d+(?:\.\d+)?\s+\(\d+-bit\)", re.MULTILINE)
+    has_python = bool(version_line.search(output))
+    has_empty = "no interpreters" in output.lower()
+    assert has_python or has_empty, (
+        f"--list-pythons produced no recognisable lines:\n{output}"
     )
     print("[1/7] --list-pythons preserved: OK")
 
