@@ -25,6 +25,8 @@ from __future__ import annotations
 import os
 from typing import Any
 
+from tn_venv.plugins import Plugin
+
 from . import subcommand
 
 __all__ = ["GuiSubcommandPlugin", "GuiHookPlugin"]
@@ -33,7 +35,7 @@ __all__ = ["GuiSubcommandPlugin", "GuiHookPlugin"]
 # --------------------------------------------------------------------- subcommand
 
 
-class GuiSubcommandPlugin:
+class GuiSubcommandPlugin(Plugin):
     """Plugin that wires ``tn-venv gui [...]`` into the tn-venv CLI.
 
     When :meth:`register` is called by :func:`tn_venv.plugins.load_plugins`
@@ -48,7 +50,7 @@ class GuiSubcommandPlugin:
 
     name = "tn-venv-gui"
 
-    def register(self, hooks: Any) -> None:
+    def register(self, hooks: Any) -> None:  # noqa: D401 - Plugin API
         if os.environ.get("TN_VENV_GUI_NO_AUTOLOAD"):
             return
         subcommand.install_subcommand()
@@ -57,7 +59,7 @@ class GuiSubcommandPlugin:
 # --------------------------------------------------------------------- hooks
 
 
-class GuiHookPlugin:
+class GuiHookPlugin(Plugin):
     """Plugin that reacts to ``run_session`` lifecycle hooks.
 
     When tn-venv (now or in the future) wires plugins into the session
@@ -80,9 +82,9 @@ class GuiHookPlugin:
     #: values are already in place when we read them.
     _PRIORITY = 50
 
-    def register(self, hooks: Any) -> None:
+    def register(self, hooks: Any) -> None:  # noqa: D401 - Plugin API
         try:
-            from tn_venv.plugins import HookName  # type: ignore[import-not-found]
+            from tn_venv.plugins import HookName
         except Exception:
             # Older tn-venv without the plugin API: silently no-op.
             return
