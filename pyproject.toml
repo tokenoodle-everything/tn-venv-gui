@@ -1,0 +1,43 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tn-venv-gui"
+dynamic = ["version"]
+description = "A graphical GUI frontend built upon the tn-venv virtual environment manager."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Tokenoodle-Everything License" }
+authors = [
+    { name = "Tokenoodle-Everything Organization" },
+]
+keywords = ["tn-venv", "venv", "virtualenv", "gui", "tkinter"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: X11 Applications",
+    "Environment :: Win32 (MS Windows)",
+    "Environment :: MacOS X",
+    "Intended Audience :: Developers",
+    "License :: Other/Proprietary License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Topic :: Software Development",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "tn-venv>=0.2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/tokenoodle-everything/tn-venv-gui"
+
+[project.scripts]
+tn-venv-gui = "tn_venv_gui.app:launch"
+
+[tool.setuptools.packages.find]
+include = ["tn_venv_gui*"]
+
+[tool.setuptools.package-data]
+tn_venv_gui = ["py.typed"]
