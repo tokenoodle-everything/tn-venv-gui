@@ -46,6 +46,31 @@ Or, without installing:
 python -m tn_venv_gui
 ```
 
+### As an optional subcommand of `tn-venv`
+
+Because the package is also a [tn-venv plugin](https://github.com/tokenoodle-everything/tn-venv),
+importing `tn_venv_gui` (which happens automatically as soon as the
+package is on `sys.path`) extends `tn-venv` with a `gui` subcommand:
+
+```bash
+tn-venv gui                # open the GUI window
+tn-venv .venv              # create the venv exactly like before
+tn-venv --list-pythons     # original tn-venv command, unchanged
+```
+
+Set `TN_VENV_GUI_NO_AUTOLOAD=1` in the environment if you want the
+subcommand to stay disabled (e.g. inside CI):
+
+```bash
+TN_VENV_GUI_NO_AUTOLOAD=1 tn-venv gui
+```
+
+The GUI plugin is also registered as a standard
+`[project.entry-points."tn_venv.plugins"]` entry point, so once
+tn-venv wires `load_plugins()` into its CLI (the loader is already
+public API in tn-venv 1.0.0) the subcommand becomes discoverable
+without any monkey-patching.
+
 ## Project layout
 
 ```

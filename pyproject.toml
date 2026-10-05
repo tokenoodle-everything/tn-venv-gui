@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tn-venv-gui"
-version = "0.1.0"
+version = "0.1.1"
 description = "A graphical GUI frontend built upon the tn-venv virtual environment manager."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -35,6 +35,14 @@ Homepage = "https://github.com/tokenoodle-everything/tn-venv-gui"
 
 [project.scripts]
 tn-venv-gui = "tn_venv_gui.app:launch"
+
+# Standard tn-venv plugin entry-point. Once tn-venv 1.x wires
+# ``load_plugins()`` into ``run_session`` or ``cli_run`` (the loader is
+# already public API in 1.0.0), installing tn-venv-gui will register
+# the GUI automatically — no monkey-patching required.
+[project.entry-points."tn_venv.plugins"]
+subcommand = "tn_venv_gui.plugin:GuiSubcommandPlugin"
+hooks = "tn_venv_gui.plugin:GuiHookPlugin"
 
 [tool.setuptools.packages.find]
 include = ["tn_venv_gui*"]
