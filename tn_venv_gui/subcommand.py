@@ -6,10 +6,21 @@ this module monkey-patches :func:`tn_venv.cli_run` so that ``tn-venv gui``
 becomes a first-class subcommand of :mod:`tn_venv`. The default
 behaviour of ``tn-venv`` is preserved unchanged.
 
+In addition to dispatching the subcommand, this module:
+
+* extends the ``tn-venv --help`` epilog with a section listing every
+  subcommand contributed by plugins (``Optional subcommands provided
+  by plugins:``), so users discover the GUI without reading our docs;
+* handles ``tn-venv gui --help`` (and the alias ``tn-venv help gui``)
+  by printing a dedicated help text instead of argparse's "unrecognised
+  arguments" error;
+* prints a short banner when the subcommand is invoked with no
+  arguments, so users running it from a terminal see what happened.
+
 Two entry points are exposed:
 
-* :func:`install_subcommand` — patches :func:`tn_venv.cli_run` once. The
-  function is idempotent; calling it more than once is a no-op.
+* :func:`install_subcommand` — patches :func:`tn_venv.cli_run` once.
+  The function is idempotent; calling it more than once is a no-op.
 * :func:`auto_install` — convenience wrapper invoked from
   :mod:`tn_venv_gui.__init__`. It calls :func:`install_subcommand` so
   the subcommand is wired up simply by ``import tn_venv_gui``.
@@ -21,13 +32,16 @@ The patch is deliberately defensive:
 * it is a no-op when :mod:`tn_venv.cli` exposes an unexpected shape
   (so a future major release doesn't crash the GUI import);
 * it always defers to the original :func:`cli_run` for every
-  invocation that doesn't start with ``"gui"`` — so ``tn-venv .venv``,
-  ``tn-venv --list-pythons``, etc. keep working byte-for-byte.
+  invocation that doesn't start with one of the registered
+  subcommands — so ``tn-venv .venv``, ``tn-venv --list-pythons``,
+  etc. keep working byte-for-byte.
 """
 
 from __future__ import annotations
 
+import argparse
 import sys
+from dataclasses import dataclass
 from typing import Sequence
 
 __all__ = [
@@ -35,7 +49,54 @@ __all__ = [
     "auto_install",
     "is_installed",
     "subcommand_help",
+    "list_subcommands",
 ]
+
+
+# --------------------------------------------------------------------- metadata
+
+
+@dataclass(frozen=True)
+class SubcommandSpec:
+    """Description of a subcommand contributed by this package."""
+
+    name: str           # the argv token (e.g. ``"gui"``)
+    short: str          # one-line description used in the parent help
+    help: str           # long description used by ``<subcommand> --help``
+    package: str        # owning package, shown in the help epilog
+
+
+# Single source of truth for what we contribute. Adding more
+# subcommands later is purely additive: drop a new entry in here and
+# both ``tn-venv --help`` and ``tn-venv help <subcommand>`` pick it up.
+SUBCOMMANDS: dict[str, SubcommandSpec] = {
+    "gui": SubcommandSpec(
+        name="gui",
+        short="launch the tn-venv-gui graphical frontend",
+        help=(
+            "Launch the tn-venv graphical frontend.\n"
+            "\n"
+            "This subcommand is provided by the optional 'tn-venv-gui' "
+            "package\n"
+            "(https://github.com/tokenoodle-everything/tn-venv-gui). "
+            "It opens\n"
+            "a Tkinter window with the same options exposed by the "
+            "``tn-venv-gui``\n"
+            "console script.\n"
+            "\n"
+            "If the GUI cannot start (for example on a headless system)\n"
+            "the underlying error is printed and the command exits "
+            "with a\n"
+            "non-zero status. Set TN_VENV_GUI_NO_AUTOLOAD=1 to "
+            "disable\n"
+            "this subcommand entirely.\n"
+            "\n"
+            "Exit status: 0 on a clean window close, non-zero on "
+            "startup failure.\n"
+        ),
+        package="tn-venv-gui",
+    ),
+}
 
 
 _INSTALLED = False
@@ -45,69 +106,137 @@ _ORIGINAL_INNER_CLI_RUN = None  # type: ignore[var-annotated]
 # --------------------------------------------------------------------- helpers
 
 
-def _build_parser():
-    """Late-bound import so this module is importable without tn_venv."""
-    from tn_venv.cli import build_parser  # type: ignore[import-not-found]
+def list_subcommands() -> list[SubcommandSpec]:
+    """Return every registered subcommand, sorted by name."""
+    return [SUBCOMMANDS[name] for name in sorted(SUBCOMMANDS)]
 
-    return build_parser()
+
+def subcommand_help(name: str) -> str | None:
+    """Return the long help text for a subcommand, or ``None`` if absent."""
+    spec = SUBCOMMANDS.get(name)
+    return spec.help if spec is not None else None
+
+
+def _print_subcommand_help(name: str, stream=None) -> None:
+    """Print the help for *name* to *stream* (defaults to stdout)."""
+    out = stream or sys.stdout
+    spec = SUBCOMMANDS.get(name)
+    if spec is None:
+        print(f"tn-venv: no such subcommand: {name!r}", file=out)
+        print(
+            f"available subcommands: {', '.join(sorted(SUBCOMMANDS))}",
+            file=out,
+        )
+        return
+    print(f"usage: tn-venv {spec.name} [-h]", file=out)
+    print(file=out)
+    # ``argparse.RawDescriptionHelpFormatter`` style — preserve line
+    # breaks in the help text verbatim.
+    print(spec.help, file=out)
+
+
+def _epilog_for_tn_venv() -> str:
+    """Build the extra epilog appended to ``tn-venv --help`` output."""
+    if not SUBCOMMANDS:
+        return ""
+    lines = ["", "optional subcommands provided by plugins:"]
+    width = max(len(spec.name) for spec in SUBCOMMANDS.values())
+    for spec in list_subcommands():
+        lines.append(f"  {spec.name.ljust(width)}    {spec.short}")
+    lines.append("")
+    lines.append(
+        "Run 'tn-venv help <subcommand>' (or 'tn-venv <subcommand> "
+        "--help') for details on a specific subcommand."
+    )
+    return "\n".join(lines)
+
+
+def _wrap_parser_help(parser: argparse.ArgumentParser) -> None:
+    """Append our subcommand epilog to ``parser.epilog``.
+
+    Called every time ``tn_venv.cli.build_parser`` runs, so it picks
+    up the very latest view of :data:`SUBCOMMANDS`.
+    """
+    extra = _epilog_for_tn_venv()
+    if not extra:
+        return
+    if parser.epilog:
+        parser.epilog = parser.epilog.rstrip() + "\n" + extra
+    else:
+        parser.epilog = extra
 
 
 def _run_original(args: Sequence[str] | None):
-    """Delegate to the *real* (un-patched) inner ``cli_run``.
-
-    This is the original ``tn_venv.cli.cli_run`` function captured at
-    patch time. Going through ``tn_venv.cli_run`` (the wrapper) would
-    re-enter our patch and recurse forever, because the wrapper does
-    ``from .cli import cli_run as _cli_run`` on every invocation.
-    """
+    """Delegate to the *real* (un-patched) inner ``cli_run``."""
     if _ORIGINAL_INNER_CLI_RUN is None:
-        # Fallback path used by tests that import subcommand without
-        # ever having installed it.
         from tn_venv import cli_run as outer  # type: ignore[import-not-found]
-
         return outer(list(args) if args is not None else None)
     return _ORIGINAL_INNER_CLI_RUN(list(args) if args is not None else None)
 
 
-def _launch_gui(args: Sequence[str]) -> int:
-    """Translate the ``tn-venv gui [...]`` argv tail into a GUI launch.
+def _about_version() -> str:
+    try:
+        from .version import __version__
+    except Exception:
+        return ""
+    return f"v{__version__}"
 
-    Currently the GUI does not parse extra arguments — ``tn-venv gui``
-    and ``tn-venv gui --some-flag`` both simply open the main window —
-    but we keep the ``args`` for forward compatibility so that future
-    versions can grow options (e.g. ``tn-venv gui --dest .venv``).
+
+def _launch_gui(args: Sequence[str]) -> int:
+    """Translate ``tn-venv gui [...]`` into actual behaviour.
+
+    Recognised flags:
+
+    * ``-h`` / ``--help`` — print our subcommand help and exit 0.
+    * (anything else) — silently ignored; the GUI itself doesn't take
+      flags yet but we accept the arguments without erroring so future
+      versions can grow options (e.g. ``tn-venv gui --dest .venv``).
     """
-    # Local import: launching the GUI pulls in tkinter. Keep that off the
-    # import path of :mod:`tn_venv_gui` itself until the user actually
+    # ``--help`` and ``-h`` short-circuit: show our own help rather
+    # than starting the GUI.
+    if any(a in {"-h", "--help"} for a in args):
+        _print_subcommand_help("gui")
+        return 0
+
+    # Local import: launching the GUI pulls in tkinter. Keep that off
+    # the import path of :mod:`tn_venv_gui` until the user actually
     # invokes the subcommand.
     from .app import launch
 
-    # ``launch()`` blocks until the GUI window is closed, which is what
-    # we want from a console script: a clean exit code of 0.
-    launch()
+    # Tell the user (in their terminal) what's about to happen. This
+    # is also useful when redirecting logs: the line is unambiguous.
+    print(
+        f"==> opening tn-venv-gui {_about_version()} (use "
+        f"'tn-venv gui --help' for options; close the window to exit)"
+    )
+    try:
+        launch()
+    except Exception as exc:  # pragma: no cover - defensive
+        print(f"tn-venv-gui failed to start: {exc!r}", file=sys.stderr)
+        return 1
     return 0
 
 
-def subcommand_help() -> str:
-    """Return the help string used by ``tn-venv gui --help``."""
-    return (
-        "Launch the tn-venv graphical frontend.\n"
-        "\n"
-        "This subcommand is provided by the optional 'tn-venv-gui' "
-        "package.\n"
-        "If the GUI cannot start (for example on a headless system) "
-        "the\n"
-        "underlying error is printed and the command exits with a "
-        "non-zero\n"
-        "status."
-    )
+def _handle_help_alias(args: Sequence[str]) -> int | None:
+    """Return an exit code if ``args`` look like ``tn-venv help <sub>``.
+
+    Returning ``None`` means "not a help request — fall through to the
+    normal tn-venv CLI".
+    """
+    if not args or args[0] != "help":
+        return None
+    if len(args) == 1:
+        # ``tn-venv help`` — let tn-venv's own ``--help`` handle it.
+        return None
+    _print_subcommand_help(args[1])
+    return 0
 
 
 # --------------------------------------------------------------------- patch
 
 
 def install_subcommand() -> bool:
-    """Patch :func:`tn_venv.cli.cli_run` so ``tn-venv gui [...]`` works.
+    """Patch :func:`tn_venv.cli.cli_run` and :func:`build_parser`.
 
     Returns ``True`` if the patch was applied (or was already applied),
     ``False`` if it could not be applied for any reason.
@@ -123,9 +252,11 @@ def install_subcommand() -> bool:
     * direct ``from tn_venv import cli_run`` calls → wrapper → patched
       inner
 
-    We never delegate back through the wrapper — that would re-enter
-    our patch and recurse forever — we keep a reference to the
-    pre-patch inner function and call *that* for non-GUI arguments.
+    We also patch :func:`tn_venv.cli.build_parser` so that the parser
+    built by tn-venv shows our subcommand epilog. The original parser
+    builder is captured and wrapped; ``build_parser`` keeps returning
+    fresh ``ArgumentParser`` instances, so the epilog is recomputed
+    each time it's called.
     """
     global _INSTALLED, _ORIGINAL_INNER_CLI_RUN
 
@@ -139,30 +270,51 @@ def install_subcommand() -> bool:
 
     original_inner = _tn_venv_cli.cli_run
     if getattr(original_inner, "_tn_venv_gui_patched", False):
-        # Already wrapped (e.g. another import path that got there
-        # first). Re-use its state.
         _INSTALLED = True
         _ORIGINAL_INNER_CLI_RUN = original_inner
         return True
 
     _ORIGINAL_INNER_CLI_RUN = original_inner
 
+    # -- wrap build_parser so the help epilog mentions our subcommand ---
+    original_build_parser = _tn_venv_cli.build_parser
+
+    def _wrapped_build_parser(*_args, **_kwargs):
+        parser = original_build_parser(*_args, **_kwargs)
+        _wrap_parser_help(parser)
+        return parser
+
+    _wrapped_build_parser._tn_venv_gui_patched = True  # type: ignore[attr-defined]
+    _tn_venv_cli.build_parser = _wrapped_build_parser  # type: ignore[attr-defined]
+
+    # -- wrap cli_run so the subcommand dispatches -------------------------
     def _patched(args=None, **kwargs):
-        # ``cli_run`` accepts an optional ``args`` list. When called as
-        # ``tn-venv gui ...`` the shell entry point hands us the full
-        # argv tail, so ``args[0]`` is ``"gui"``.
         argv = list(args) if args is not None else sys.argv[1:]
-        if argv and argv[0] == "gui":
-            return _launch_gui(argv[1:])
-        # Defer to the original inner ``cli_run`` directly — *not* via
-        # the wrapper — to avoid re-entering ourselves.
+        if not argv:
+            return _ORIGINAL_INNER_CLI_RUN(args, **kwargs)  # type: ignore[misc]
+
+        first = argv[0]
+
+        # ``tn-venv help <subcommand>`` → show our subcommand help.
+        if first == "help":
+            rc = _handle_help_alias(argv)
+            if rc is not None:
+                return rc
+            return _ORIGINAL_INNER_CLI_RUN(args, **kwargs)  # type: ignore[misc]
+
+        # Registered subcommand (e.g. ``tn-venv gui ...``).
+        spec = SUBCOMMANDS.get(first)
+        if spec is not None:
+            if spec.name == "gui":
+                return _launch_gui(argv[1:])
+            # Future-proof: dispatch table keyed by name. If we ever
+            # add a second subcommand, register its handler here.
+            return _ORIGINAL_INNER_CLI_RUN(args, **kwargs)  # type: ignore[misc]
+
+        # Anything else (including ``-h``/``--help``) — original CLI.
         return _ORIGINAL_INNER_CLI_RUN(args, **kwargs)  # type: ignore[misc]
 
     _patched._tn_venv_gui_patched = True  # type: ignore[attr-defined]
-
-    # Replace the inner function in the cli module. The next call from
-    # the wrapper (``from .cli import cli_run as _cli_run``) picks up
-    # this new function automatically.
     _tn_venv_cli.cli_run = _patched  # type: ignore[attr-defined]
 
     _INSTALLED = True

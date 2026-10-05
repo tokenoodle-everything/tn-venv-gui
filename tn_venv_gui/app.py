@@ -711,6 +711,16 @@ class TnVenvGUI:
 
 def launch() -> None:
     """Build and run the GUI; blocks until the user closes the window."""
+    # First-run convenience: drop a ``.pth`` so subsequent
+    # ``tn-venv`` invocations advertise the ``gui`` subcommand. This
+    # is silent and best-effort; users can opt out with
+    # ``TN_VENV_GUI_NO_PTH=1``.
+    try:
+        from . import pth as _pth
+        if not _pth.is_installed():
+            _pth.install_pth()
+    except Exception:
+        pass
     try:
         TnVenvGUI().mainloop()
     except Exception:  # pragma: no cover - last-resort safety net

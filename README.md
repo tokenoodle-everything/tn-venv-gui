@@ -49,21 +49,35 @@ python -m tn_venv_gui
 ### As an optional subcommand of `tn-venv`
 
 Because the package is also a [tn-venv plugin](https://github.com/tokenoodle-everything/tn-venv),
-importing `tn_venv_gui` (which happens automatically as soon as the
-package is on `sys.path`) extends `tn-venv` with a `gui` subcommand:
+running `tn-venv-gui` once drops a `.pth` file in `site-packages/` that
+auto-imports the package on every Python startup. From that point on,
+`tn-venv` advertises and honours the `gui` subcommand:
 
 ```bash
-tn-venv gui                # open the GUI window
-tn-venv .venv              # create the venv exactly like before
-tn-venv --list-pythons     # original tn-venv command, unchanged
+tn-venv                       # create ./.venv as usual
+tn-venv gui                   # open the GUI window
+tn-venv gui --help            # detailed help for the subcommand
+tn-venv help gui              # alias for the same help
+tn-venv --list-pythons        # original tn-venv command, unchanged
+tn-venv .venv --dry-run       # original dry-run output, unchanged
 ```
 
-Set `TN_VENV_GUI_NO_AUTOLOAD=1` in the environment if you want the
-subcommand to stay disabled (e.g. inside CI):
+The `tn-venv --help` epilog automatically grows a section listing every
+subcommand contributed by plugins:
 
-```bash
-TN_VENV_GUI_NO_AUTOLOAD=1 tn-venv gui
 ```
+optional subcommands provided by plugins:
+  gui    launch the tn-venv-gui graphical frontend
+
+Run 'tn-venv help <subcommand>' (or 'tn-venv <subcommand> --help') for details on a specific subcommand.
+```
+
+Knobs:
+
+| Environment variable | Effect |
+|----------------------|--------|
+| `TN_VENV_GUI_NO_AUTOLOAD=1` | Don't monkey-patch `tn_venv.cli_run` even if imported. |
+| `TN_VENV_GUI_NO_PTH=1` | Don't drop the auto-loading `.pth` file. |
 
 The GUI plugin is also registered as a standard
 `[project.entry-points."tn_venv.plugins"]` entry point, so once
