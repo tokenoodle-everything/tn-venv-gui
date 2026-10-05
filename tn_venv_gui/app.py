@@ -341,7 +341,7 @@ class TnVenvGUI:
         # ---- links ----------------------------------------------------
         links_frame = ttk.Frame(tab)
         links_frame.pack(fill=tk.X, pady=(4, 8))
-        url = "https://github.com/tokenoodle-everything/tn-venv"
+        url = "https://github.com/tokenoodle-everything/tn-venv-gui"
         link = ttk.Label(
             links_frame,
             text=url,

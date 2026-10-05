@@ -28,7 +28,7 @@ The GUI requires Python ≥ 3.9 and the `tn-venv` package (≥ 0.2.0).
 # from a clone of this repository
 pip install -e .
 
-# or directly from PyPI / your index once published
+# or directly from PyPI
 pip install tn-venv-gui
 ```
 
