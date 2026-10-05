@@ -26,7 +26,9 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install tn-venv
         run: |
-         
+          python -m pip install --upgrade pip
+          python -m pip install -e .
+          python -m pip install tn-venv
       - name: "Run main tests"
         run: |
           python run_tests.py
