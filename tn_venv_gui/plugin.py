@@ -108,6 +108,9 @@ class GuiHookPlugin(Plugin):
     def _on_session_start(ctx: Any) -> None:
         # ``ctx.options`` is the resolved Options object. We stash a
         # marker so tests can assert the hook fired.
+        reporter = ctx.reporter
+        if reporter is not None:
+            reporter.info("[tn-venv-gui] plugin loaded — observing session")
         if ctx.data is not None:
             ctx.data.setdefault("gui_plugin_observed", []).append("session_start")
 
@@ -116,10 +119,16 @@ class GuiHookPlugin(Plugin):
         # ``ctx.result`` is the SessionResult built by run_session. We
         # expose its ``env_dir`` so a host application (or a follow-up
         # plugin) can read it without re-running the pipeline.
+        result = getattr(ctx, "result", None)
+        env_dir = getattr(result, "env_dir", None)
+        reporter = ctx.reporter
+        if reporter is not None:
+            where = f" → {env_dir}" if env_dir is not None else ""
+            reporter.info(f"[tn-venv-gui] session finished{where}")
         if ctx.data is not None:
             ctx.data.setdefault("gui_plugin_observed", []).append("session_end")
-            if getattr(ctx, "result", None) is not None:
-                ctx.data["last_env_dir"] = getattr(ctx.result, "env_dir", None)
+            if env_dir is not None:
+                ctx.data["last_env_dir"] = env_dir
 
 
 # Convenience alias — the ``PLUGIN_ENTRY_POINT`` value advertised in
