@@ -135,37 +135,6 @@ def _print_subcommand_help(name: str, stream=None) -> None:
     print(spec.help, file=out)
 
 
-def _epilog_for_tn_venv() -> str:
-    """Build the extra epilog appended to ``tn-venv --help`` output."""
-    if not SUBCOMMANDS:
-        return ""
-    lines = ["", "optional subcommands provided by plugins:"]
-    width = max(len(spec.name) for spec in SUBCOMMANDS.values())
-    for spec in list_subcommands():
-        lines.append(f"  {spec.name.ljust(width)}    {spec.short}")
-    lines.append("")
-    lines.append(
-        "Run 'tn-venv help <subcommand>' (or 'tn-venv <subcommand> "
-        "--help') for details on a specific subcommand."
-    )
-    return "\n".join(lines)
-
-
-def _wrap_parser_help(parser: argparse.ArgumentParser) -> None:
-    """Append our subcommand epilog to ``parser.epilog``.
-
-    Called every time ``tn_venv.cli.build_parser`` runs, so it picks
-    up the very latest view of :data:`SUBCOMMANDS`.
-    """
-    extra = _epilog_for_tn_venv()
-    if not extra:
-        return
-    if parser.epilog:
-        parser.epilog = parser.epilog.rstrip() + "\n" + extra
-    else:
-        parser.epilog = extra
-
-
 def _run_original(args: Sequence[str] | None):
     """Delegate to the *real* (un-patched) inner ``cli_run``."""
     if _ORIGINAL_INNER_CLI_RUN is None:
@@ -236,7 +205,7 @@ def _handle_help_alias(args: Sequence[str]) -> int | None:
 
 
 def install_subcommand() -> bool:
-    """Patch :func:`tn_venv.cli.cli_run` and :func:`build_parser`.
+    """Patch :func:`tn_venv.cli.cli_run` to dispatch the GUI subcommand.
 
     Returns ``True`` if the patch was applied (or was already applied),
     ``False`` if it could not be applied for any reason.
@@ -252,11 +221,11 @@ def install_subcommand() -> bool:
     * direct ``from tn_venv import cli_run`` calls → wrapper → patched
       inner
 
-    We also patch :func:`tn_venv.cli.build_parser` so that the parser
-    built by tn-venv shows our subcommand epilog. The original parser
-    builder is captured and wrapped; ``build_parser`` keeps returning
-    fresh ``ArgumentParser`` instances, so the epilog is recomputed
-    each time it's called.
+    Help-text integration is handled separately: tn-venv 1.x exposes
+    the public :attr:`tn_venv.plugins.HookName.HELP_EPILOG` hook, and
+    :class:`tn_venv_gui.plugin.GuiSubcommandPlugin` registers its own
+    HELP_EPILOG listener — no ``build_parser`` monkey-patch is needed
+    any more.
     """
     global _INSTALLED, _ORIGINAL_INNER_CLI_RUN
 
@@ -275,17 +244,6 @@ def install_subcommand() -> bool:
         return True
 
     _ORIGINAL_INNER_CLI_RUN = original_inner
-
-    # -- wrap build_parser so the help epilog mentions our subcommand ---
-    original_build_parser = _tn_venv_cli.build_parser
-
-    def _wrapped_build_parser(*_args, **_kwargs):
-        parser = original_build_parser(*_args, **_kwargs)
-        _wrap_parser_help(parser)
-        return parser
-
-    _wrapped_build_parser._tn_venv_gui_patched = True  # type: ignore[attr-defined]
-    _tn_venv_cli.build_parser = _wrapped_build_parser  # type: ignore[attr-defined]
 
     # -- wrap cli_run so the subcommand dispatches -------------------------
     def _patched(args=None, **kwargs):
