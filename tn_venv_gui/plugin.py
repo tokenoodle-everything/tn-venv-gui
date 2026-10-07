@@ -34,6 +34,19 @@ from tn_venv.plugins import Plugin
 
 from . import subcommand
 
+# Install the ``cli_run`` patch eagerly at class-definition time. The
+# entry-point machinery instantiates :class:`GuiSubcommandPlugin`
+# inside :func:`tn_venv.plugins.load_plugins`, which happens *before*
+# argparse sees the argv. Installing the patch here means the very
+# first ``tn-venv`` invocation that loads plugins (via the eager
+# ``load_plugins`` call in :func:`tn_venv.cli.cli_run`) gets the
+# patched dispatcher.
+#
+# This is intentionally idempotent: ``install_subcommand`` is a
+# no-op when called more than once, so we can safely fire it on
+# every class definition.
+subcommand.install_subcommand()
+
 __all__ = ["GuiSubcommandPlugin", "GuiHookPlugin"]
 
 
