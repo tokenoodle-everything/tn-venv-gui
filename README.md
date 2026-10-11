@@ -88,18 +88,6 @@ tn-venv wires `load_plugins()` into its CLI (the loader is already
 public API in tn-venv 1.0.0) the subcommand becomes discoverable
 without any monkey-patching.
 
-## Project layout
-
-```
-tn_venv_gui/
-├── __init__.py        # exposes launch() and TnVenvGUI
-├── __main__.py        # python -m tn_venv_gui entry point
-├── app.py             # Tk root window, widgets, event wiring
-├── workers.py         # background thread running tn_venv
-├── python_list.py     # enumerates Python interpreters via tn_venv.discovery
-└── version.py         # package version
-```
-
 ## License
 
 Tokenoodle-Everything License v1.0 (see `License.txt`). This is *not*
