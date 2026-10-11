@@ -1,7 +1,7 @@
 # tn-venv-gui
 
 ![Official](https://img.shields.io/badge/official%20authorized-C0C0C0)
-![tier-3](https://img.shields.io/badge/tier-3-gold-D4AF37)
+![tier-3](screenshot/tier3.svg)
 
 A graphical frontend for [tn-venv](https://github.com/tokenoodle-everything/tn-venv),
 the batteries-included `virtualenv` alternative. Built with Tkinter so it runs anywhere
