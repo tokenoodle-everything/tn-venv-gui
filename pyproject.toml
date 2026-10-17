@@ -27,7 +27,7 @@ classifiers = [
     "Topic :: Utilities",
 ]
 dependencies = [
-    "tn-venv>=0.2.0",
+    "tn-venv>=1.0.0",
 ]
 
 [project.urls]
