@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tn-venv-gui"
-version = "0.1.6"
+version = "0.2.0"
 description = "A graphical GUI frontend built upon the tn-venv virtual environment manager."
 readme = "README.md"
 requires-python = ">=3.9"
@@ -27,7 +27,7 @@ classifiers = [
     "Topic :: Utilities",
 ]
 dependencies = [
-    "tn-venv>=1.0.0",
+    "tn-venv>=1.1.0",
 ]
 
 [project.urls]
