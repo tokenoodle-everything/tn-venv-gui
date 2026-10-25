@@ -74,7 +74,7 @@ class TnVenvGUI:
 
     def __init__(self) -> None:
         self.root = tk.Tk()
-        self.root.title(f"{APP_TITLE}  —  tn-venv {__version__}")
+        self.root.title(f"{APP_TITLE}  —  version {__version__}")
         self.root.geometry("880x680")
         self.root.minsize(720, 560)
 
