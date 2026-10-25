@@ -7,7 +7,7 @@ A graphical frontend for [tn-venv](https://github.com/tokenoodle-everything/tn-v
 the batteries-included `virtualenv` alternative. Built with Tkinter so it runs anywhere
 Python's standard library does — no extra GUI dependencies required.
 
-![tn-venv-gui screenshot placeholder](screenshot/screenshot.png)
+![tn-venv-gui screenshot placeholder](screenshot/ss0_3_0pre1.png)
 
 ## Features
 
